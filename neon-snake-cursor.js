@@ -284,7 +284,7 @@
     );
   }
 
-  function drawTrailConnector(ctx, from, to, width, alpha, glowScale) {
+  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, controlPoint = null) {
     if (!from || !to || alpha <= 0 || distance(from, to) < 0.5) {
       return;
     }
@@ -300,7 +300,11 @@
     ctx.shadowBlur = CONFIG.movingGlow * glowScale;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
+    if (controlPoint) {
+      ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, to.x, to.y);
+    } else {
+      ctx.lineTo(to.x, to.y);
+    }
     ctx.stroke();
     ctx.restore();
   }
@@ -364,7 +368,7 @@
     ctx.restore();
   }
 
-  function createTrailSegment(fromCenter, toCenter, dim) {
+  function createTrailSegment(fromCenter, toCenter, dim, controlPoint = null) {
     const corners = cursorRelativeCorners.map((point) => new Corner(point));
     initCornersAt(corners, fromCenter, dim);
     const ranks = rankCorners(corners, dim, toCenter);
@@ -376,6 +380,7 @@
       center: { ...toCenter },
       dim: { ...dim },
       corners,
+      controlPoint: controlPoint ? { ...controlPoint } : null,
       age: 0,
       doneFrames: 0,
 
@@ -710,7 +715,8 @@
           toTrail.getCurrentCenter(),
           Math.max(fromTrail.getConnectorWidth(), toTrail.getConnectorWidth()),
           CONFIG.movingAlpha * orderAlpha,
-          highSpeedGlowScale
+          highSpeedGlowScale,
+          toTrail.controlPoint
         );
       }
 
@@ -722,10 +728,11 @@
           currentCenter,
           Math.max(
             newest.getConnectorWidth(),
-            currentDSize.height * CONFIG.connectorWidthFactor
+            currentSize.height * CONFIG.connectorWidthFactor
           ),
           CONFIG.movingAlpha,
-          highSpeedGlowScale
+          highSpeedGlowScale,
+          null // No control point for the leading segment yet
         );
       }
     }
