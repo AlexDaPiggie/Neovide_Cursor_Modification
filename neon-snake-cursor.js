@@ -266,19 +266,19 @@
       CONFIG.outerColor,
       CONFIG.outerColor,
       CONFIG.movingGlow,
-      0.72
+      0.85 // Was 0.72
     );
     drawPass(
       CONFIG.midColor,
       CONFIG.midColor,
-      CONFIG.movingGlow * 0.58,
-      0.92
+      CONFIG.movingGlow * 0.50, // Was 0.58
+      1.00 // Was 0.92
     );
     drawPass(
       CONFIG.coreColor,
       CONFIG.coreColor,
-      CONFIG.movingGlow * 0.2,
-      0.78
+      CONFIG.movingGlow * 0.15, // Was 0.2
+      0.95 // Was 0.78
     );
   }
 
