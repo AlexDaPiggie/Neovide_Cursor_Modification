@@ -651,11 +651,23 @@
       if (!fromCenter || !toCenter) {
         return;
       }
-      if (distance(fromCenter, toCenter) <= CONFIG.minMoveDistance) {
+      const dist = distance(fromCenter, toCenter);
+      if (dist <= CONFIG.minMoveDistance) {
         return;
       }
 
-      this.retiredTrails.push(createTrailSegment(fromCenter, toCenter, dim));
+      let controlPoint = null;
+      if (dist > CONFIG.jumpThreshold) {
+        const midX = (fromCenter.x + toCenter.x) / 2;
+        const midY = (fromCenter.y + toCenter.y) / 2;
+        const arcHeight =
+          Math.abs(toCenter.x - fromCenter.x) * CONFIG.jumpArcHeightFactor;
+        controlPoint = { x: midX, y: midY - arcHeight };
+      }
+
+      this.retiredTrails.push(
+        createTrailSegment(fromCenter, toCenter, dim, controlPoint)
+      );
       while (this.retiredTrails.length > CONFIG.maxRetiredTrails) {
         this.retiredTrails.shift();
       }
