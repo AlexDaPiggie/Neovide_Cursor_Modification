@@ -14,7 +14,7 @@
     stationaryGradientMid: "#47b7eb",
     stationaryGradientLowerMid: "#9ee4f5",
     stationaryGradientBottom: "#d9fbff",
-    stationaryAlpha: 0.38,
+    stationaryAlpha: 0.52,
     movingAlpha: 0.96,
     stationaryGlow: 6,
     movingGlow: 20,
@@ -336,7 +336,7 @@
       ctx.fillRect(x, y, width, height);
 
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.78);
+      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.85);
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.fillStyle = gradient;
