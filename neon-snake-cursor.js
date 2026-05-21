@@ -251,7 +251,7 @@
       ctx.globalAlpha = alpha * passAlpha;
       ctx.fillStyle = fillStyle;
       ctx.shadowColor = shadowColor;
-      ctx.shadowBlur = shadowBlur;
+      ctx.shadowBlur = shadowBlur * glowScale;
       ctx.beginPath();
       ctx.moveTo(corners[0].cp.x, corners[0].cp.y);
       for (let index = 1; index < corners.length; index += 1) {
@@ -265,19 +265,19 @@
     drawPass(
       CONFIG.outerColor,
       CONFIG.outerColor,
-      CONFIG.movingGlow * glowScale,
+      CONFIG.movingGlow,
       0.72
     );
     drawPass(
       CONFIG.midColor,
       CONFIG.midColor,
-      CONFIG.movingGlow * 0.58 * glowScale,
+      CONFIG.movingGlow * 0.58,
       0.92
     );
     drawPass(
       CONFIG.coreColor,
       CONFIG.coreColor,
-      CONFIG.movingGlow * 0.2 * glowScale,
+      CONFIG.movingGlow * 0.2,
       0.78
     );
   }
@@ -390,8 +390,8 @@
         return animating || this.doneFrames < 3;
       },
 
-      draw(ctx, alpha) {
-        drawPolygon(ctx, this.corners, alpha, 1);
+      draw(ctx, alpha, glowScale) {
+        drawPolygon(ctx, this.corners, alpha, glowScale);
       },
 
       getCurrentCenter() {
@@ -678,9 +678,15 @@
 
     drawRetiredTrails() {
       const total = this.retiredTrails.length;
+      if (!total) {
+        return;
+      }
+
+      const highSpeedGlowScale = 1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
+
       this.retiredTrails.forEach((trail, index) => {
         const orderAlpha = 0.48 + 0.52 * ((index + 1) / Math.max(total, 1));
-        trail.draw(this.ctx, CONFIG.movingAlpha * orderAlpha);
+        trail.draw(this.ctx, CONFIG.movingAlpha * orderAlpha, highSpeedGlowScale);
       });
     }
 
@@ -690,8 +696,7 @@
         return;
       }
 
-      const highSpeedGlowScale =
-        1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
+      const highSpeedGlowScale = 1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
 
       for (let index = 0; index < total - 1; index += 1) {
         const fromTrail = this.retiredTrails[index];
