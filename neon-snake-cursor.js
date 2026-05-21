@@ -39,6 +39,7 @@
     connectorHighSpeedGlowBoost: 0.1,
     connectorWidthFactor: 0.32,
     minMoveDistance: 0.5,
+    highSpeedThreshold: 4,
   };
 
   const cursorRelativeCorners = [

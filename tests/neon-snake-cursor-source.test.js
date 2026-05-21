@@ -97,4 +97,6 @@ assert.match(source, /if \(!moving\) \{[\s\S]*?globalCompositeOperation = "sourc
 assert.match(source, /ctx\.fillStyle = CONFIG\.midColor/);
 assert.match(source, /if \(moving\) \{[\s\S]*?fillStyle = CONFIG\.coreColor/);
 
+assert.match(source, /highSpeedThreshold: 4/);
+
 console.log("neon-snake-cursor source structure ok");
