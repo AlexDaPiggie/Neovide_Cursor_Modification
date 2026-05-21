@@ -14,10 +14,10 @@
     stationaryGradientMid: "#47b7eb",
     stationaryGradientLowerMid: "#9ee4f5",
     stationaryGradientBottom: "#d9fbff",
-    stationaryAlpha: 0.52,
+    stationaryAlpha: 0.38,
     movingAlpha: 0.96,
-    stationaryGlow: 6,
-    movingGlow: 20,
+    stationaryGlow: 9,
+    movingGlow: 30,
     animationLength: 0.125,
     shortAnimationLength: 0.05,
     shortMoveThreshold: 8,
@@ -38,8 +38,9 @@
     retiredOldnessSpeedBoost: 0.48,
     connectorHighSpeedGlowBoost: 0.1,
     connectorWidthFactor: 0.32,
+    jumpThreshold: 100,
+    jumpArcHeightFactor: 0.3,
     minMoveDistance: 0.5,
-    highSpeedThreshold: 4,
   };
 
   const cursorRelativeCorners = [
@@ -94,7 +95,7 @@
         return false;
       }
 
-      const omega = 4.0 / this.animationLength;
+      const omega = 1.0 / this.animationLength;
       const a = this.position;
       const b = this.position * omega + this.velocity;
       const c = Math.exp(-omega * dt);
@@ -267,23 +268,23 @@
       CONFIG.outerColor,
       CONFIG.outerColor,
       CONFIG.movingGlow,
-      0.85 // Was 0.72
+      0.72
     );
     drawPass(
       CONFIG.midColor,
       CONFIG.midColor,
-      CONFIG.movingGlow * 0.50, // Was 0.58
-      1.00 // Was 0.92
+      CONFIG.movingGlow * 0.58,
+      0.92
     );
     drawPass(
       CONFIG.coreColor,
       CONFIG.coreColor,
-      CONFIG.movingGlow * 0.15, // Was 0.2
-      0.95 // Was 0.78
+      CONFIG.movingGlow * 0.2,
+      0.78
     );
   }
 
-  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, isHighSpeed) {
+  function drawTrailConnector(ctx, from, to, width, alpha, glowScale) {
     if (!from || !to || alpha <= 0 || distance(from, to) < 0.5) {
       return;
     }
@@ -291,7 +292,7 @@
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = isHighSpeed ? CONFIG.midColor : CONFIG.coreColor;
+    ctx.strokeStyle = CONFIG.coreColor;
     ctx.lineWidth = Math.max(1, width);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -337,7 +338,7 @@
       ctx.fillRect(x, y, width, height);
 
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.85);
+      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.78);
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.fillStyle = gradient;
@@ -697,7 +698,6 @@
         return;
       }
 
-      const isHighSpeed = total >= CONFIG.highSpeedThreshold;
       const highSpeedGlowScale = 1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
 
       for (let index = 0; index < total - 1; index += 1) {
@@ -710,8 +710,7 @@
           toTrail.getCurrentCenter(),
           Math.max(fromTrail.getConnectorWidth(), toTrail.getConnectorWidth()),
           CONFIG.movingAlpha * orderAlpha,
-          highSpeedGlowScale,
-          isHighSpeed
+          highSpeedGlowScale
         );
       }
 
@@ -723,11 +722,10 @@
           currentCenter,
           Math.max(
             newest.getConnectorWidth(),
-            currentSize.height * CONFIG.connectorWidthFactor
+            currentDSize.height * CONFIG.connectorWidthFactor
           ),
           CONFIG.movingAlpha,
-          highSpeedGlowScale,
-          isHighSpeed
+          highSpeedGlowScale
         );
       }
     }
