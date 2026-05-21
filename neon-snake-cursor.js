@@ -283,7 +283,7 @@
     );
   }
 
-  function drawTrailConnector(ctx, from, to, width, alpha, glowScale) {
+  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, isHighSpeed) {
     if (!from || !to || alpha <= 0 || distance(from, to) < 0.5) {
       return;
     }
@@ -291,7 +291,7 @@
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = CONFIG.coreColor;
+    ctx.strokeStyle = isHighSpeed ? CONFIG.midColor : CONFIG.coreColor;
     ctx.lineWidth = Math.max(1, width);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -697,6 +697,7 @@
         return;
       }
 
+      const isHighSpeed = total >= CONFIG.highSpeedThreshold;
       const highSpeedGlowScale = 1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
 
       for (let index = 0; index < total - 1; index += 1) {
@@ -709,7 +710,8 @@
           toTrail.getCurrentCenter(),
           Math.max(fromTrail.getConnectorWidth(), toTrail.getConnectorWidth()),
           CONFIG.movingAlpha * orderAlpha,
-          highSpeedGlowScale
+          highSpeedGlowScale,
+          isHighSpeed
         );
       }
 
@@ -724,7 +726,8 @@
             currentSize.height * CONFIG.connectorWidthFactor
           ),
           CONFIG.movingAlpha,
-          highSpeedGlowScale
+          highSpeedGlowScale,
+          isHighSpeed
         );
       }
     }

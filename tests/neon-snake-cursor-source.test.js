@@ -9,7 +9,7 @@ assert.match(source, /class DampedSpringAnimation\b/);
 assert.match(source, /class Corner\b/);
 assert.match(source, /function createNeovideCursor\b/);
 assert.match(source, /function createTrailSegment\b/);
-assert.match(source, /function drawTrailConnector\b/);
+assert.match(source, /function drawTrailConnector\(ctx, from, to, width, alpha, glowScale, isHighSpeed\)/);
 assert.match(source, /drawRetiredTrailConnectors\b/);
 assert.match(source, /retiredTrails/);
 assert.doesNotMatch(source, /function pushSegment\b/);
@@ -32,8 +32,8 @@ assert.doesNotMatch(
 );
 assert.match(
   connectorSource,
-  /strokeStyle = CONFIG\.coreColor/,
-  "connector body should use the moving cursor core color"
+  /strokeStyle = isHighSpeed \? CONFIG\.midColor : CONFIG\.coreColor/,
+  "connector body should use midColor when high speed, otherwise coreColor"
 );
 assert.match(
   connectorSource,
@@ -80,6 +80,11 @@ assert.strictEqual(connectorStrokeCount, 1, "connector should draw one stroke");
 assert.doesNotMatch(source, /function createBridgeGradient\b/);
 assert.match(source, /connectorHighSpeedGlowBoost/);
 assert.match(source, /const highSpeedGlowScale =[\s\S]*?1 \+ Math\.min\(total,\s*CONFIG\.maxRetiredTrails\) \* CONFIG\.connectorHighSpeedGlowBoost/);
+assert.match(source, /const isHighSpeed = total >= CONFIG\.highSpeedThreshold/);
+assert.match(
+  source,
+  /drawTrailConnector\([\s\S]*?highSpeedGlowScale,[\s\S]*?isHighSpeed\s*\);/
+);
 
 assert.match(source, /stationaryGradientTop/);
 assert.match(source, /stationaryGradientLowerMid/);
