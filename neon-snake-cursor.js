@@ -43,6 +43,7 @@
     editorGroupJumpWidthBoost: 2.8,
     editorGroupJumpGlowBoost: 2.0,
     editorGroupJumpAlphaBoost: 1.25,
+    lineJumpPendingWindow: 2000,
   };
 
   const cursorRelativeCorners = [
@@ -444,7 +445,7 @@
         this.age += scaledDt;
         let animating = false;
         this.corners.forEach((corner) => {
-          if (corner.update(this.dim, this.center, scaledDt, isScrolling)) {
+          if (corner.update(this.dim, this.center, scaledDt, false)) {
             animating = true;
           }
         });
@@ -566,6 +567,7 @@
       this.lastAnimationTime = 0;
       this.scanTimer = 0;
       this.scrollTimer = 0;
+      this.pendingLineJumpUntil = 0;
       this.devicePixelRatio = 1;
       this.init();
     }
@@ -604,6 +606,17 @@
         },
         { capture: true, passive: true }
       );
+      document.addEventListener("keydown", (event) => {
+        if (
+          event &&
+          event.ctrlKey &&
+          !event.altKey &&
+          String(event.key || "").toLowerCase() === "g"
+        ) {
+          this.pendingLineJumpUntil =
+            performance.now() + CONFIG.lineJumpPendingWindow;
+        }
+      });
 
       this.loop();
       this.scanTimer = setInterval(
@@ -723,6 +736,15 @@
       while (this.retiredTrails.length > CONFIG.maxRetiredTrails) {
         this.retiredTrails.shift();
       }
+    }
+
+    consumePendingLineJump(now) {
+      if (this.pendingLineJumpUntil < now) {
+        return false;
+      }
+
+      this.pendingLineJumpUntil = 0;
+      return true;
     }
 
     updateRetiredTrails(dt, isScrolling) {
@@ -853,17 +875,27 @@
         const { data, rect, center, size } = entry;
         const isPrimary = primaryEntry && entry.id === primaryEntry.id;
         const primaryChanged = Boolean(isPrimary && selectedPrimaryChanged);
+        const shouldMoveCursor = primaryChanged || entry.moved;
 
-        if (isPrimary && (primaryChanged || entry.moved)) {
-          const source =
-            primaryChanged && globalCursorState.lastCenter
-              ? globalCursorState.lastCenter
-              : data.lastCenter;
-          const sourceSize =
-            primaryChanged && globalCursorState.lastSize
-              ? globalCursorState.lastSize
-              : data.lastSize;
-          this.addRetiredTrail(source, center, sourceSize || size, primaryChanged);
+        if (shouldMoveCursor) {
+          if (isPrimary) {
+            const isLineJump = this.consumePendingLineJump(now);
+            const isEditorGroupJump = primaryChanged && !isLineJump;
+            const source =
+              primaryChanged && globalCursorState.lastCenter
+                ? globalCursorState.lastCenter
+                : data.lastCenter;
+            const sourceSize =
+              primaryChanged && globalCursorState.lastSize
+                ? globalCursorState.lastSize
+                : data.lastSize;
+            this.addRetiredTrail(
+              source,
+              center,
+              sourceSize || size,
+              isEditorGroupJump
+            );
+          }
           data.instance.updateSize(size.width, size.height);
           data.instance.move(
             rect.left,
