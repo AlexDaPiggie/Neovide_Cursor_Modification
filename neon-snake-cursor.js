@@ -38,13 +38,11 @@
     retiredOldnessSpeedBoost: 0.48,
     connectorHighSpeedGlowBoost: 0.1,
     connectorWidthFactor: 0.32,
-    editorGroupJumpWidthBoost: 2.2,
-    editorGroupJumpGlowBoost: 1.65,
-    editorGroupJumpAlphaBoost: 1.15,
     minMoveDistance: 0.5,
     highSpeedThreshold: 4,
-    jumpThreshold: 100,
-    jumpArcHeightFactor: 0.3,
+    editorGroupJumpWidthBoost: 2.8,
+    editorGroupJumpGlowBoost: 2.0,
+    editorGroupJumpAlphaBoost: 1.25,
   };
 
   const cursorRelativeCorners = [
@@ -87,7 +85,9 @@
   }
 
   function getCursorElements() {
-    const editor = document.querySelector(".part.editor");
+    const editor = document.querySelector
+      ? document.querySelector(".part.editor")
+      : null;
     if (editor) {
       const editorCursors = Array.from(
         editor.getElementsByClassName("cursor")
@@ -97,52 +97,35 @@
       }
     }
 
-    const activeEditor =
-      document.activeElement && document.activeElement.closest
-        ? document.activeElement.closest(".monaco-editor")
-        : null;
-    if (activeEditor) {
-      const activeCursorElements = Array.from(
-        activeEditor.querySelectorAll(".cursor")
-      );
-      if (activeCursorElements.length) {
-        return activeCursorElements;
-      }
-    }
-
     return Array.from(document.querySelectorAll(".monaco-editor .cursor"));
   }
 
   function getCursorPriority(element) {
-    const editor =
-      element && element.closest ? element.closest(".monaco-editor") : null;
-    if (!editor) {
-      return 0;
+    let priority = 0;
+    const editor = element.closest(".monaco-editor");
+
+    if (editor && editor.classList && editor.classList.contains("focused")) {
+      priority += 4;
     }
 
-    const activeEditor =
-      document.activeElement && document.activeElement.closest
-        ? document.activeElement.closest(".monaco-editor")
-        : null;
-    if (activeEditor && activeEditor.contains(element)) {
-      return 3;
+    if (
+      element.closest(
+        ".editor-group-container.active, .editor-group-container.focused, .group.active, .group.focused"
+      )
+    ) {
+      priority += 2;
     }
 
-    if (editor.classList && editor.classList.contains("focused")) {
-      return 2;
+    if (
+      document.activeElement &&
+      editor &&
+      typeof editor.contains === "function" &&
+      editor.contains(document.activeElement)
+    ) {
+      priority += 1;
     }
 
-    const editorGroup =
-      element && element.closest
-        ? element.closest(
-            ".editor-group-container.active, .editor-group-container.focused, .group.active, .group.focused"
-          )
-        : null;
-    if (editorGroup) {
-      return 2;
-    }
-
-    return 1;
+    return priority;
   }
 
   class DampedSpringAnimation {
@@ -347,11 +330,12 @@
     );
   }
 
-  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, isHighSpeed, controlPoint, isEditorGroupJump) {
+  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, isHighSpeed, isEditorGroupJump) {
     if (!from || !to || alpha <= 0 || distance(from, to) < 0.5) {
       return;
     }
 
+    const connectorHighSpeed = isEditorGroupJump || isHighSpeed;
     const connectorWidth = isEditorGroupJump
       ? width * CONFIG.editorGroupJumpWidthBoost
       : width;
@@ -363,7 +347,6 @@
       0,
       1
     );
-    const connectorHighSpeed = isEditorGroupJump || isHighSpeed;
 
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
@@ -376,11 +359,7 @@
     ctx.shadowBlur = CONFIG.movingGlow * connectorGlowScale;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
-    if (controlPoint) {
-      ctx.quadraticCurveTo(controlPoint.x, controlPoint.y, to.x, to.y);
-    } else {
-      ctx.lineTo(to.x, to.y);
-    }
+    ctx.lineTo(to.x, to.y);
     ctx.stroke();
     ctx.restore();
   }
@@ -444,7 +423,7 @@
     ctx.restore();
   }
 
-  function createTrailSegment(fromCenter, toCenter, dim, controlPoint = null, isEditorGroupJump = false) {
+  function createTrailSegment(fromCenter, toCenter, dim, isEditorGroupJump) {
     const corners = cursorRelativeCorners.map((point) => new Corner(point));
     initCornersAt(corners, fromCenter, dim);
     const ranks = rankCorners(corners, dim, toCenter);
@@ -456,7 +435,6 @@
       center: { ...toCenter },
       dim: { ...dim },
       corners,
-      controlPoint: controlPoint ? { ...controlPoint } : null,
       isEditorGroupJump: Boolean(isEditorGroupJump),
       age: 0,
       doneFrames: 0,
@@ -580,6 +558,7 @@
     constructor() {
       this.cursors = new Map();
       this.retiredTrails = [];
+      this.primaryCursorId = null;
       this.canvas = document.createElement("canvas");
       this.ctx = this.canvas.getContext("2d");
       this.isScrolling = false;
@@ -587,9 +566,6 @@
       this.lastAnimationTime = 0;
       this.scanTimer = 0;
       this.scrollTimer = 0;
-      this.primaryCursorId = null;
-      this.primaryCenter = null;
-      this.primarySize = null;
       this.devicePixelRatio = 1;
       this.init();
     }
@@ -702,14 +678,20 @@
           const instance = createNeovideCursor();
           const size = sizeFromRect(rect);
           const center = centerFromRect(rect);
+          const previousGlobalCenter = globalCursorState.lastCenter
+            ? { ...globalCursorState.lastCenter }
+            : null;
+          const previousGlobalSize = globalCursorState.lastSize
+            ? { ...globalCursorState.lastSize }
+            : null;
           instance.updateSize(size.width, size.height);
           instance.move(
             rect.left,
             rect.top,
-            globalCursorState.lastCenter
-              ? { ...globalCursorState.lastCenter }
-              : null
+            previousGlobalCenter ? { ...previousGlobalCenter } : null
           );
+          globalCursorState.lastCenter = previousGlobalCenter;
+          globalCursorState.lastSize = previousGlobalSize;
           this.cursors.set(id, {
             instance,
             target: element,
@@ -727,32 +709,16 @@
       }
     }
 
-    addRetiredTrail(fromCenter, toCenter, dim, isEditorGroupJump = false) {
+    addRetiredTrail(fromCenter, toCenter, dim, isEditorGroupJump) {
       if (!fromCenter || !toCenter) {
         return;
       }
-      const dist = distance(fromCenter, toCenter);
-      if (dist <= CONFIG.minMoveDistance) {
+      if (distance(fromCenter, toCenter) <= CONFIG.minMoveDistance) {
         return;
       }
 
-      let controlPoint = null;
-      if (!isEditorGroupJump && dist > CONFIG.jumpThreshold) {
-        const midX = (fromCenter.x + toCenter.x) / 2;
-        const midY = (fromCenter.y + toCenter.y) / 2;
-        const arcHeight =
-          Math.abs(toCenter.x - fromCenter.x) * CONFIG.jumpArcHeightFactor;
-        controlPoint = { x: midX, y: midY - arcHeight };
-      }
-
       this.retiredTrails.push(
-        createTrailSegment(
-          fromCenter,
-          toCenter,
-          dim,
-          controlPoint,
-          isEditorGroupJump
-        )
+        createTrailSegment(fromCenter, toCenter, dim, isEditorGroupJump)
       );
       while (this.retiredTrails.length > CONFIG.maxRetiredTrails) {
         this.retiredTrails.shift();
@@ -816,8 +782,7 @@
           CONFIG.movingAlpha * orderAlpha,
           highSpeedGlowScale,
           isHighSpeed,
-          toTrail.controlPoint,
-          toTrail.isEditorGroupJump
+          fromTrail.isEditorGroupJump || toTrail.isEditorGroupJump
         );
       }
 
@@ -834,7 +799,6 @@
           CONFIG.movingAlpha,
           highSpeedGlowScale,
           isHighSpeed,
-          newest.controlPoint,
           newest.isEditorGroupJump
         );
       }
@@ -866,79 +830,69 @@
         }
 
         const center = centerFromRect(rect);
+        const size = sizeFromRect(rect);
         visibleEntries.push({
           id,
           data,
           rect,
           center,
-          size: sizeFromRect(rect),
-          moved: distance(data.lastCenter, center) > CONFIG.minMoveDistance,
+          size,
           priority: getCursorPriority(data.target),
+          moved: distance(data.lastCenter, center) > CONFIG.minMoveDistance,
         });
       }
 
-      let primaryEntry = null;
-      visibleEntries.forEach((entry) => {
-        if (
-          !primaryEntry ||
-          entry.priority > primaryEntry.priority ||
-          (entry.priority === primaryEntry.priority &&
-            entry.moved &&
-            !primaryEntry.moved) ||
-          (entry.priority === primaryEntry.priority &&
-            entry.moved === primaryEntry.moved &&
-            entry.id === this.primaryCursorId)
-        ) {
-          primaryEntry = entry;
-        }
-      });
+      visibleEntries.sort((a, b) => b.priority - a.priority);
+      const primaryEntry = visibleEntries[0] || null;
+      const selectedPrimaryChanged =
+        primaryEntry &&
+        this.primaryCursorId &&
+        this.primaryCursorId !== primaryEntry.id;
 
-      visibleEntries.forEach((entry) => {
-        const { data, center, size } = entry;
+      for (const entry of visibleEntries) {
+        const { data, rect, center, size } = entry;
         const isPrimary = primaryEntry && entry.id === primaryEntry.id;
-        const primaryChanged =
-          isPrimary &&
-          this.primaryCursorId &&
-          this.primaryCursorId !== primaryEntry.id;
-        const source =
-          primaryChanged && this.primaryCenter
-            ? this.primaryCenter
-            : data.lastCenter;
-        const sourceSize =
-          primaryChanged && this.primarySize ? this.primarySize : data.lastSize;
+        const primaryChanged = Boolean(isPrimary && selectedPrimaryChanged);
 
         if (isPrimary && (primaryChanged || entry.moved)) {
+          const source =
+            primaryChanged && globalCursorState.lastCenter
+              ? globalCursorState.lastCenter
+              : data.lastCenter;
+          const sourceSize =
+            primaryChanged && globalCursorState.lastSize
+              ? globalCursorState.lastSize
+              : data.lastSize;
           this.addRetiredTrail(source, center, sourceSize || size, primaryChanged);
           data.instance.updateSize(size.width, size.height);
           data.instance.move(
-            entry.rect.left,
-            entry.rect.top,
-            primaryChanged && this.primaryCenter ? this.primaryCenter : null
+            rect.left,
+            rect.top,
+            primaryChanged && globalCursorState.lastCenter
+              ? globalCursorState.lastCenter
+              : null
           );
+          data.lastCenter = center;
+          data.lastSize = size;
           this.lastAnimationTime = now;
-        } else {
-          data.instance.updateSize(size.width, size.height);
         }
 
-        data.lastCenter = center;
-        data.lastSize = size;
         data.active = true;
-      });
-
-      if (primaryEntry) {
-        const { data, center, size } = primaryEntry;
-        this.primaryCursorId = primaryEntry.id;
-        this.primaryCenter = center;
-        this.primarySize = size;
-        currentCenter = center;
-        currentSize = size;
-        globalCursorState.lastCenter = center;
-        globalCursorState.lastSize = size;
+        if (isPrimary) {
+          currentCenter = center;
+          currentSize = size;
+          globalCursorState.lastCenter = center;
+          globalCursorState.lastSize = size;
+        }
 
         if (data.instance.updateLoop(this.isScrolling)) {
           isAnyAnimating = true;
         }
         data.instance.draw(this.ctx, CONFIG.movingAlpha);
+      }
+
+      if (primaryEntry) {
+        this.primaryCursorId = primaryEntry.id;
       }
 
       this.drawRetiredTrailConnectors(currentCenter, currentSize);
