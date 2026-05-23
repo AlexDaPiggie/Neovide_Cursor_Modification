@@ -14,10 +14,10 @@
     stationaryGradientMid: "#47b7eb",
     stationaryGradientLowerMid: "#9ee4f5",
     stationaryGradientBottom: "#d9fbff",
-    stationaryAlpha: 0.38,
+    stationaryAlpha: 0.52,
     movingAlpha: 0.96,
-    stationaryGlow: 9,
-    movingGlow: 30,
+    stationaryGlow: 6,
+    movingGlow: 20,
     animationLength: 0.125,
     shortAnimationLength: 0.05,
     shortMoveThreshold: 8,
@@ -38,9 +38,13 @@
     retiredOldnessSpeedBoost: 0.48,
     connectorHighSpeedGlowBoost: 0.1,
     connectorWidthFactor: 0.32,
+    editorGroupJumpWidthBoost: 2.2,
+    editorGroupJumpGlowBoost: 1.65,
+    editorGroupJumpAlphaBoost: 1.15,
+    minMoveDistance: 0.5,
+    highSpeedThreshold: 4,
     jumpThreshold: 100,
     jumpArcHeightFactor: 0.3,
-    minMoveDistance: 0.5,
   };
 
   const cursorRelativeCorners = [
@@ -82,6 +86,65 @@
     };
   }
 
+  function getCursorElements() {
+    const editor = document.querySelector(".part.editor");
+    if (editor) {
+      const editorCursors = Array.from(
+        editor.getElementsByClassName("cursor")
+      );
+      if (editorCursors.length) {
+        return editorCursors;
+      }
+    }
+
+    const activeEditor =
+      document.activeElement && document.activeElement.closest
+        ? document.activeElement.closest(".monaco-editor")
+        : null;
+    if (activeEditor) {
+      const activeCursorElements = Array.from(
+        activeEditor.querySelectorAll(".cursor")
+      );
+      if (activeCursorElements.length) {
+        return activeCursorElements;
+      }
+    }
+
+    return Array.from(document.querySelectorAll(".monaco-editor .cursor"));
+  }
+
+  function getCursorPriority(element) {
+    const editor =
+      element && element.closest ? element.closest(".monaco-editor") : null;
+    if (!editor) {
+      return 0;
+    }
+
+    const activeEditor =
+      document.activeElement && document.activeElement.closest
+        ? document.activeElement.closest(".monaco-editor")
+        : null;
+    if (activeEditor && activeEditor.contains(element)) {
+      return 3;
+    }
+
+    if (editor.classList && editor.classList.contains("focused")) {
+      return 2;
+    }
+
+    const editorGroup =
+      element && element.closest
+        ? element.closest(
+            ".editor-group-container.active, .editor-group-container.focused, .group.active, .group.focused"
+          )
+        : null;
+    if (editorGroup) {
+      return 2;
+    }
+
+    return 1;
+  }
+
   class DampedSpringAnimation {
     constructor(animationLength) {
       this.position = 0;
@@ -95,7 +158,7 @@
         return false;
       }
 
-      const omega = 1.0 / this.animationLength;
+      const omega = 4.0 / this.animationLength;
       const a = this.position;
       const b = this.position * omega + this.velocity;
       const c = Math.exp(-omega * dt);
@@ -268,36 +331,49 @@
       CONFIG.outerColor,
       CONFIG.outerColor,
       CONFIG.movingGlow,
-      0.72
+      0.85 // Was 0.72
     );
     drawPass(
       CONFIG.midColor,
       CONFIG.midColor,
-      CONFIG.movingGlow * 0.58,
-      0.92
+      CONFIG.movingGlow * 0.50, // Was 0.58
+      1.00 // Was 0.92
     );
     drawPass(
       CONFIG.coreColor,
       CONFIG.coreColor,
-      CONFIG.movingGlow * 0.2,
-      0.78
+      CONFIG.movingGlow * 0.15, // Was 0.2
+      0.95 // Was 0.78
     );
   }
 
-  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, controlPoint = null) {
+  function drawTrailConnector(ctx, from, to, width, alpha, glowScale, isHighSpeed, controlPoint, isEditorGroupJump) {
     if (!from || !to || alpha <= 0 || distance(from, to) < 0.5) {
       return;
     }
 
+    const connectorWidth = isEditorGroupJump
+      ? width * CONFIG.editorGroupJumpWidthBoost
+      : width;
+    const connectorGlowScale = glowScale * (isEditorGroupJump
+      ? CONFIG.editorGroupJumpGlowBoost
+      : 1);
+    const connectorAlpha = clamp(
+      alpha * (isEditorGroupJump ? CONFIG.editorGroupJumpAlphaBoost : 1),
+      0,
+      1
+    );
+    const connectorHighSpeed = isEditorGroupJump || isHighSpeed;
+
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    ctx.globalAlpha = alpha;
-    ctx.strokeStyle = CONFIG.coreColor;
-    ctx.lineWidth = Math.max(1, width);
+    ctx.globalAlpha = connectorAlpha;
+    ctx.strokeStyle = connectorHighSpeed ? CONFIG.midColor : CONFIG.coreColor;
+    ctx.lineWidth = Math.max(1, connectorWidth);
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.shadowColor = CONFIG.midColor;
-    ctx.shadowBlur = CONFIG.movingGlow * glowScale;
+    ctx.shadowBlur = CONFIG.movingGlow * connectorGlowScale;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     if (controlPoint) {
@@ -342,7 +418,7 @@
       ctx.fillRect(x, y, width, height);
 
       ctx.globalCompositeOperation = "source-over";
-      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.78);
+      ctx.globalAlpha = clamp(alpha + 0.36, 0, 0.85);
       ctx.shadowColor = "transparent";
       ctx.shadowBlur = 0;
       ctx.fillStyle = gradient;
@@ -368,7 +444,7 @@
     ctx.restore();
   }
 
-  function createTrailSegment(fromCenter, toCenter, dim, controlPoint = null) {
+  function createTrailSegment(fromCenter, toCenter, dim, controlPoint = null, isEditorGroupJump = false) {
     const corners = cursorRelativeCorners.map((point) => new Corner(point));
     initCornersAt(corners, fromCenter, dim);
     const ranks = rankCorners(corners, dim, toCenter);
@@ -381,6 +457,7 @@
       dim: { ...dim },
       corners,
       controlPoint: controlPoint ? { ...controlPoint } : null,
+      isEditorGroupJump: Boolean(isEditorGroupJump),
       age: 0,
       doneFrames: 0,
 
@@ -510,6 +587,9 @@
       this.lastAnimationTime = 0;
       this.scanTimer = 0;
       this.scrollTimer = 0;
+      this.primaryCursorId = null;
+      this.primaryCenter = null;
+      this.primarySize = null;
       this.devicePixelRatio = 1;
       this.init();
     }
@@ -604,7 +684,7 @@
 
     scan() {
       const ids = new Set();
-      const elements = document.querySelectorAll(".monaco-editor .cursor");
+      const elements = getCursorElements();
 
       elements.forEach((element) => {
         const rect = element.getBoundingClientRect();
@@ -647,7 +727,7 @@
       }
     }
 
-    addRetiredTrail(fromCenter, toCenter, dim) {
+    addRetiredTrail(fromCenter, toCenter, dim, isEditorGroupJump = false) {
       if (!fromCenter || !toCenter) {
         return;
       }
@@ -657,7 +737,7 @@
       }
 
       let controlPoint = null;
-      if (dist > CONFIG.jumpThreshold) {
+      if (!isEditorGroupJump && dist > CONFIG.jumpThreshold) {
         const midX = (fromCenter.x + toCenter.x) / 2;
         const midY = (fromCenter.y + toCenter.y) / 2;
         const arcHeight =
@@ -666,7 +746,13 @@
       }
 
       this.retiredTrails.push(
-        createTrailSegment(fromCenter, toCenter, dim, controlPoint)
+        createTrailSegment(
+          fromCenter,
+          toCenter,
+          dim,
+          controlPoint,
+          isEditorGroupJump
+        )
       );
       while (this.retiredTrails.length > CONFIG.maxRetiredTrails) {
         this.retiredTrails.shift();
@@ -715,6 +801,7 @@
         return;
       }
 
+      const isHighSpeed = total >= CONFIG.highSpeedThreshold;
       const highSpeedGlowScale = 1 + Math.min(total, CONFIG.maxRetiredTrails) * CONFIG.connectorHighSpeedGlowBoost;
 
       for (let index = 0; index < total - 1; index += 1) {
@@ -728,7 +815,9 @@
           Math.max(fromTrail.getConnectorWidth(), toTrail.getConnectorWidth()),
           CONFIG.movingAlpha * orderAlpha,
           highSpeedGlowScale,
-          toTrail.controlPoint
+          isHighSpeed,
+          toTrail.controlPoint,
+          toTrail.isEditorGroupJump
         );
       }
 
@@ -744,7 +833,9 @@
           ),
           CONFIG.movingAlpha,
           highSpeedGlowScale,
-          null // No control point for the leading segment yet
+          isHighSpeed,
+          newest.controlPoint,
+          newest.isEditorGroupJump
         );
       }
     }
@@ -759,6 +850,7 @@
       let isAnyAnimating = this.updateRetiredTrails(dt, this.isScrolling);
       let currentCenter = null;
       let currentSize = null;
+      const visibleEntries = [];
 
       for (const [id, data] of this.cursors) {
         if (!data.target || !data.target.isConnected) {
@@ -774,31 +866,70 @@
         }
 
         const center = centerFromRect(rect);
-        const size = sizeFromRect(rect);
-        const moved = distance(data.lastCenter, center) > CONFIG.minMoveDistance;
-        const becameActive = isActive && !data.active;
+        visibleEntries.push({
+          id,
+          data,
+          rect,
+          center,
+          size: sizeFromRect(rect),
+          moved: distance(data.lastCenter, center) > CONFIG.minMoveDistance,
+          priority: getCursorPriority(data.target),
+        });
+      }
 
-        if (becameActive || moved) {
-          const source =
-            becameActive && globalCursorState.lastCenter
-              ? globalCursorState.lastCenter
-              : data.lastCenter;
-          const sourceSize = data.lastSize || size;
-          this.addRetiredTrail(source, center, sourceSize);
+      let primaryEntry = null;
+      visibleEntries.forEach((entry) => {
+        if (
+          !primaryEntry ||
+          entry.priority > primaryEntry.priority ||
+          (entry.priority === primaryEntry.priority &&
+            entry.moved &&
+            !primaryEntry.moved) ||
+          (entry.priority === primaryEntry.priority &&
+            entry.moved === primaryEntry.moved &&
+            entry.id === this.primaryCursorId)
+        ) {
+          primaryEntry = entry;
+        }
+      });
+
+      visibleEntries.forEach((entry) => {
+        const { data, center, size } = entry;
+        const isPrimary = primaryEntry && entry.id === primaryEntry.id;
+        const primaryChanged =
+          isPrimary &&
+          this.primaryCursorId &&
+          this.primaryCursorId !== primaryEntry.id;
+        const source =
+          primaryChanged && this.primaryCenter
+            ? this.primaryCenter
+            : data.lastCenter;
+        const sourceSize =
+          primaryChanged && this.primarySize ? this.primarySize : data.lastSize;
+
+        if (isPrimary && (primaryChanged || entry.moved)) {
+          this.addRetiredTrail(source, center, sourceSize || size, primaryChanged);
           data.instance.updateSize(size.width, size.height);
           data.instance.move(
-            rect.left,
-            rect.top,
-            becameActive && globalCursorState.lastCenter
-              ? globalCursorState.lastCenter
-              : null
+            entry.rect.left,
+            entry.rect.top,
+            primaryChanged && this.primaryCenter ? this.primaryCenter : null
           );
-          data.lastCenter = center;
-          data.lastSize = size;
           this.lastAnimationTime = now;
+        } else {
+          data.instance.updateSize(size.width, size.height);
         }
 
+        data.lastCenter = center;
+        data.lastSize = size;
         data.active = true;
+      });
+
+      if (primaryEntry) {
+        const { data, center, size } = primaryEntry;
+        this.primaryCursorId = primaryEntry.id;
+        this.primaryCenter = center;
+        this.primarySize = size;
         currentCenter = center;
         currentSize = size;
         globalCursorState.lastCenter = center;
